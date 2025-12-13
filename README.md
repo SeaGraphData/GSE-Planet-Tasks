@@ -6,7 +6,7 @@ This Python-based pipeline generates 10-day (dekadal) NDVI composite products fr
 
 The core of the solution is a **temporal interpolation method**. The pipeline accesses data via the [Copernicus Data Space Ecosystem (CDSE)](https://dataspace.copernicus.eu/), applies cloud and shadow masking using the Scene Classification Layer (SCL), and then uses an Inverse Distance Weighting (IDW) algorithm. This algorithm intelligently estimates the NDVI for the exact target dekadal date by blending the nearest available clear-sky observations from before and after that date, ensuring a continuous, gap-free time series.
 
-## Methodology and Implementation
+### Methodology and Implementation
 
 The process begins by configuring authentication with the CDSE using OAuth 2.0 credentials, as outlined in the official [Authentication guide](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html). A search is performed for all available Sentinel-2 L2A scenes over the Area of Interest (AOI) located in Graz (Austria) within a user-defined period (August 2025).
 
