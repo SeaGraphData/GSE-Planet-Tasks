@@ -24,7 +24,13 @@ The main workflow is contained within a Jupyter Notebook. To use it:
 
 The final output is a set of three analysis-ready GeoTIFF files—one for each dekadal period—representing the interpolated NDVI. These can be directly loaded into GIS (QGIS, ArcGIS Pro) software for further analysis.
 
-## References
+
+
+## Task 2:
+
+
+
+## Task 1 References
 This project leverages the following resources and services:
 *   **CDSE** - [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
 *   **OAuth** - [CDSE Authentication Documentation](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html)
@@ -35,17 +41,20 @@ This project leverages the following resources and services:
 
 
 
+
+
+
 ## Authors
 
 *   [**Juan Fernandez**](mailto:juan.fernandez.sea@gmail.com) - [LinkedIn](https://www.linkedin.com/in/juan-fernandez-martinez/)
 
-## Prerequisites
+## Task 1 Prerequisites
 
 The main pipeline is designed to run in a **Jupyter Notebook**. The development and testing of this project were done using **Anaconda Distribution 2.7.0**, which provides Jupyter Notebook and a robust foundation for scientific computing in Python.
 
 For ease of environment setup and dependency management, we highly recommend using the Anaconda distribution or Miniconda for this project.
 
-## Dependencies
+## Task 1 Dependencies
 
 The core functionality of this Dekadal NDVI pipeline relies on the following key Python libraries. The recommended way to install them is via `conda` from the `conda-forge` channel.
 
