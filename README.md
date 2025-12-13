@@ -32,3 +32,37 @@ This project leverages the following resources and services:
 
 
 
+
+## Authors
+
+*   [**Juan Fernandez**](mailto:juan.fernandez.sea@gmail.com) - [LinkedIn](https://www.linkedin.com/in/juan-fernandez-martinez/)
+
+## Prerequisites
+
+The main pipeline is designed to run in a **Jupyter Notebook**. The development and testing of this project were done using **Anaconda Distribution 2.7.0**, which provides Jupyter Notebook and a robust foundation for scientific computing in Python.
+
+For ease of environment setup and dependency management, we highly recommend using the Anaconda distribution or Miniconda for this project.
+
+## Dependencies
+
+The core functionality of this Dekadal NDVI pipeline relies on the following key Python libraries. The recommended way to install them is via `conda` from the `conda-forge` channel.
+
+| Category | Package | Typical Version | License | Purpose / Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Core & Computation** | [Python](https://www.python.org/) | 3.10+ | PSF | Base programming language. |
+| | [NumPy](https://numpy.org/) | >=1.22.4 | BSD-3 | Fundamental package for array computations. |
+| | [SciPy](https://scipy.org/) | >=1.10.0 | BSD-3 | Advanced mathematics and interpolation routines (`scipy.ndimage`). |
+| **Geo-Spatial & CDSE Access** | [SentinelHub](https://pypi.org/project/sentinelhub/) | >=3.10 | MIT | **Essential** for accessing Sentinel-2 data from the Copernicus Data Space Ecosystem (CDSE). |
+| | [Rasterio](https://rasterio.readthedocs.io/) | >=1.3.0 | BSD-3 | Reading and writing geospatial raster data (GeoTIFF). |
+| **Data Handling & Utilities** | [Pandas](https://pandas.pydata.org/) | >=2.0.0 | BSD-3 | Data structure and analysis for metadata or time series. |
+| | [PyYAML](https://pypi.org/project/PyYAML/) or [python-dotenv](https://pypi.org/project/python-dotenv/) | latest | MIT | For managing configuration files and environment variables (e.g., CDSE credentials). |
+| **Visualization** | [Matplotlib](https://matplotlib.org/) | >=3.7.0 | Matplotlib | Creating static, animated, and interactive visualizations of NDVI results. |
+| **Jupyter** | [Jupyter Notebook](https://jupyter.org/) | latest | BSD-3 | Interactive notebook environment to run the pipeline. |
+
+### Recommended Installation via Conda
+
+You can create a new Conda environment with all the necessary dependencies using the following command:
+
+```bash
+conda create -n ndvi_env -c conda-forge python=3.10 sentinelhub rasterio scipy pandas matplotlib jupyter
+conda activate ndvi_env
