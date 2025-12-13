@@ -28,10 +28,19 @@ The final output is a set of three analysis-ready GeoTIFF files—one for each d
 
 ### References
 This project leverages the following key resources and services:
-*   **CDSE** - [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
-*   **OAuth** - [CDSE Authentication Documentation](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html)
-*   **Sentinel Hub Template Scripts** - [Multi-temporal Evalscript Examples](https://github.com/eu-cdse/notebook-samples/blob/main/sentinelhub/custom_scripts/2_multi_temporal_evalscripts.ipynb)
-*   **Sentinel Hub Scripts** - [Repository of Custom Evalscripts](https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel/)
+
+1. *Inverse Distance Weighting (IDW)* — general theory and definition, including weighted averaging and decay with distance. Available at: https://en.wikipedia.org/wiki/Inverse_distance_weighting :contentReference[oaicite:3]{index=3}
+
+2. Susanto, P., De Souza, P., & He, J. (2016). *Spatiotemporal Interpolation for Environmental Modelling*. Sensors. This article reviews IDW and its application to time series interpolation contexts. DOI: https://doi.org/10.3390/s16081245 :contentReference[oaicite:4]{index=4}
+
+3. Applied Geomatics (2020). *Inverse distance weighting method optimization in the process of digital terrain model creation*. Describes IDW weighting and parameters in geospatial interpolation applications. :contentReference[oaicite:5]{index=5}
+
+4.  **CDSE** - [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
+5.   **OAuth** - [CDSE Authentication Documentation](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html)
+6.   **Sentinel Hub Template Scripts** - [Multi-temporal Evalscript Examples](https://github.com/eu-cdse/notebook-samples/blob/main/sentinelhub/custom_scripts/2_multi_temporal_evalscripts.ipynb)
+7.   **Sentinel Hub Scripts** - [Repository of Custom Evalscripts](https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel/)
+
+
 
 ## Task 2:
 
