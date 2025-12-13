@@ -29,11 +29,11 @@ The final output is a set of three analysis-ready GeoTIFF files—one for each d
 ### References
 This project leverages the following key resources and services:
 
-1. *Inverse Distance Weighting ([IDW](https://en.wikipedia.org/wiki/Inverse_distance_weighting))* — general theory and definition, including weighted averaging and decay with distance.
+1. *Inverse Distance Weighting ([IDW Wikipedia](https://en.wikipedia.org/wiki/Inverse_distance_weighting))* — general theory and definition, including weighted averaging and decay with distance.
 
-2. Susanto, P., De Souza, P., & He, J. (2016). *Spatiotemporal Interpolation for Environmental Modelling*. Sensors. This article reviews IDW and its application to time series interpolation contexts. DOI: https://doi.org/10.3390/s16081245 :contentReference[oaicite:4]{index=4}
+2. Susanto, P., De Souza, P., & He, J. (2016). *Spatiotemporal Interpolation for Environmental Modelling*. Sensors. This article reviews IDW and its application to time series interpolation contexts. DOI: https://doi.org/10.3390/s16081245
 
-3. Applied Geomatics (2020). *Inverse distance weighting method optimization in the process of digital terrain model creation*. Describes IDW weighting and parameters in geospatial interpolation applications. :contentReference[oaicite:5]{index=5}
+3. Applied Geomatics (2020). *Inverse distance weighting method optimization in the process of digital terrain model creation*. Vol. 12, 397–407 (2020). DOI : https://doi.org/10.1007/s12518-020-00307-6
 
 4.  **CDSE** - [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
 5.   **OAuth** - [CDSE Authentication Documentation](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html)
