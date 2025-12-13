@@ -1,4 +1,6 @@
-# Task 1: Dekadal NDVI Composite Pipeline from Sentinel-2 L2A
+# GSE Planet Tasks
+
+## Task 1: Dekadal NDVI Composite Pipeline from Sentinel-2 L2A
 
 This Python-based pipeline generates 10-day (dekadal) NDVI composite products from Sentinel-2 L2A satellite imagery. Designed for environmental and agricultural monitoring, it solves a challenge: satellite revisit cycles are irregular (every 5-7 days), but standard reporting periods like the 1st, 11th, and 21st of each month require data on exact dates.
 
