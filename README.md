@@ -29,7 +29,7 @@ The final output is a set of three analysis-ready GeoTIFF files—one for each d
 ### References
 This project leverages the following key resources and services:
 
-1. *Inverse Distance Weighting (IDW)* — general theory and definition, including weighted averaging and decay with distance. Available at: https://en.wikipedia.org/wiki/Inverse_distance_weighting :contentReference[oaicite:3]{index=3}
+1. *Inverse Distance Weighting ([IDW](https://en.wikipedia.org/wiki/Inverse_distance_weighting))* — general theory and definition, including weighted averaging and decay with distance.
 
 2. Susanto, P., De Souza, P., & He, J. (2016). *Spatiotemporal Interpolation for Environmental Modelling*. Sensors. This article reviews IDW and its application to time series interpolation contexts. DOI: https://doi.org/10.3390/s16081245 :contentReference[oaicite:4]{index=4}
 
