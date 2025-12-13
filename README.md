@@ -14,7 +14,7 @@ The code is done by an **Evalscript**—a JavaScript code that runs directly on 
 
 If multiple clear observations are available, a **temporal interpolation** is performed. The final NDVI value for the target date is calculated as a weighted average of the nearby values, where closer observations have a stronger influence. This yields a best-estimate, cloud-free composite for the exact 1st, 11th, or 21st of the month. A final, optional spatial interpolation step fills any remaining small gaps.
 
-## Pipeline
+### Pipeline
 
 The main workflow is contained within a Jupyter Notebook. To use it:
 1.  Ensure your CDSE OAuth credentials (`SH_CLIENT_ID`, `SH_CLIENT_SECRET`) are correctly set in the code.
@@ -26,16 +26,17 @@ The final output is a set of three analysis-ready GeoTIFF files—one for each d
 
 
 
-## Task 2:
-
-
-
-## Task 1 References
+### Task 1 References
 This project leverages the following resources and services:
 *   **CDSE** - [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
 *   **OAuth** - [CDSE Authentication Documentation](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html)
 *   **Sentinel Hub Template Scripts** - [Multi-temporal Evalscript Examples](https://github.com/eu-cdse/notebook-samples/blob/main/sentinelhub/custom_scripts/2_multi_temporal_evalscripts.ipynb)
 *   **Sentinel Hub Scripts** - [Repository of Custom Evalscripts](https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel/)
+
+
+
+
+## Task 2:
 
 
 
