@@ -27,8 +27,11 @@ The final output is a set of three analysis-ready GeoTIFF files—one for each d
 
 
 ### References
-This project leverages the following resources and services:
-
+This project leverages the following key resources and services:
+*   **CDSE** - [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
+*   **OAuth** - [CDSE Authentication Documentation](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html)
+*   **Sentinel Hub Template Scripts** - [Multi-temporal Evalscript Examples](https://github.com/eu-cdse/notebook-samples/blob/main/sentinelhub/custom_scripts/2_multi_temporal_evalscripts.ipynb)
+*   **Sentinel Hub Scripts** - [Repository of Custom Evalscripts](https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel/)
 
 ## Task 2:
 
