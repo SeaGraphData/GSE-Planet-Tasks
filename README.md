@@ -44,21 +44,14 @@ This project leverages the following key resources and services:
 
 ## Task 2: Sentinel Hub BYOC Onboarding
 
-### Summary
-
-This guide outlines the complete workflow for onboarding a 50TB archive of high-resolution aerial imagery from AWS S3 (us-west-2) to the Sentinel Hub BYOC API for access via Copernicus Browser on the CDSE ecosystem (CreoDIAS). A Mermaid code as well as an html Workflow has been added in this project in order to have a better understsandinfg of the process.
-# Sentinel Hub BYOC Onboarding Workflow  
-## High-Level Description for a 50 TB Aerial Imagery Archive
-
-## Overview
 
 This document describes the conceptual workflow used to onboard a large archive (approximately 50 TB) of high-resolution aerial imagery into the Sentinel Hub *Bring Your Own COG* (BYOC) service, with the objective of making the data accessible through the Copernicus Browser within the Copernicus Data Space Ecosystem (CDSE), which operates on CreoDIAS infrastructure.
+ 
+A Mermaid code as well as an html Workflow has been added in this project in order to have a better understsandinfg of the process.
 
-The emphasis is placed on **workflow design, decision-making, and operational reasoning**, rather than on detailed implementation or automation scripts.
 
----
 
-## Phase 1 – Data Assessment and Initial Planning
+### Phase 1 – Data Assessment and Initial Planning
 
 The onboarding process starts with a thorough understanding of the source dataset, which is currently hosted in a private AWS S3 bucket in the us-west-2 region. This phase is critical to avoid rework later in the process.
 
@@ -70,11 +63,9 @@ The main goal is to characterise the data and identify any constraints that may 
 - Bit depth, compression, and NoData handling  
 - Presence or absence of overviews  
 
-This assessment phase does not involve transformation yet. Instead, it produces a clear technical picture of the dataset and allows informed decisions about standardisation and transfer strategies.
 
----
 
-## Phase 2 – COG Readiness and Standardisation
+### Phase 2 – COG Readiness and Standardisation
 
 Once the dataset is understood, the next step is to ensure that all imagery complies with Sentinel Hub BYOC requirements, which are based on Cloud Optimized GeoTIFFs (COGs).
 
@@ -89,9 +80,9 @@ The key principles applied during this phase are:
 
 Rather than validating every file individually, a representative subset is typically tested first. Once the approach is confirmed, the same process is applied consistently across the full archive.
 
----
 
-## Phase 3 – Data Transfer into the CDSE Ecosystem
+
+### Phase 3 – Data Transfer into the CDSE Ecosystem
 
 With the imagery prepared in a BYOC-compatible format, the workflow moves on to data transfer. Given the dataset size (50 TB) and the target environment, data locality becomes a key consideration.
 
@@ -105,9 +96,9 @@ In practical terms, this phase involves:
 
 The transfer phase is treated as a purely logistical operation. No data transformation is expected at this stage, as all standardisation has already been completed earlier.
 
----
 
-## Phase 4 – Object Storage Configuration
+
+### Phase 4 – Object Storage Configuration
 
 Before Sentinel Hub can access the data, the CreoDIAS object storage environment must be configured correctly.
 
@@ -119,9 +110,8 @@ This phase includes:
 
 The permissions are intentionally minimal and typically limited to listing objects and reading files. This configuration step is small in scope but critical, as misconfigured access rights are a common cause of ingestion issues.
 
----
 
-## Phase 5 – BYOC Collection Definition
+### Phase 5 – BYOC Collection Definition
 
 After storage is ready, a BYOC collection is created within Sentinel Hub. Conceptually, this collection acts as a logical bridge between Sentinel Hub services and externally stored imagery.
 
@@ -133,9 +123,9 @@ During collection creation, the following elements are defined:
 
 At this stage, the imagery itself is not yet ingested. The collection only defines how Sentinel Hub should interpret and access the data once tiles are registered.
 
----
 
-## Phase 6 – Tile Registration and Ingestion
+
+### Phase 6 – Tile Registration and Ingestion
 
 Once the collection exists, individual tiles are registered with it. Each tile corresponds to a specific path in the object storage bucket and represents a spatial unit that Sentinel Hub can index and serve.
 
@@ -147,9 +137,9 @@ Tile ingestion is usually performed in batches and automated to handle large vol
 
 Ingestion progress is monitored continuously, allowing failed tiles to be retried without impacting the rest of the dataset.
 
----
 
-## Phase 7 – Validation and Functional Testing
+
+### Phase 7 – Validation and Functional Testing
 
 After ingestion, the collection is validated to ensure it behaves correctly from a user and API perspective.
 
@@ -162,9 +152,9 @@ Validation typically includes:
 
 Only limited test cases are needed at this stage, as the goal is to confirm correct end-to-end integration rather than exhaustive data quality analysis.
 
----
 
-## Phase 8 – Operational Optimisation
+
+### Phase 8 – Operational Optimisation
 
 Once the collection is functional, attention shifts to performance and operational efficiency. This phase is iterative and may continue throughout the lifetime of the dataset.
 
@@ -177,9 +167,9 @@ Common optimisation measures include:
 
 These optimisations help control processing costs and improve responsiveness for end users.
 
----
 
-## Phase 9 – Production Enablement
+
+### Phase 9 – Production Enablement
 
 In the final phase, the collection is fully enabled for operational use. This includes making it visible in the Copernicus Browser, adding descriptive metadata, and defining default visualisations.
 
