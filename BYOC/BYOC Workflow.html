@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BYOC Workflow Diagram Exporter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .instructions {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 18px;
+        }
+        
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        
+        .instructions li {
+            margin: 8px 0;
+            color: #34495e;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .btn-secondary {
+            background: #2ecc71;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #27ae60;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .btn-info {
+            background: #9b59b6;
+            color: white;
+        }
+        
+        .btn-info:hover {
+            background: #8e44ad;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        #diagram-container {
+            background: white;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            padding: 30px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        
+        #mermaid-diagram {
+            display: flex;
+            justify-content: center;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            color: #856404;
+        }
+        
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            color: #155724;
+            display: none;
+        }
+        
+        .zoom-controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .zoom-controls button {
+            padding: 8px 20px;
+            font-size: 14px;
+            margin: 0 5px;
+        }
+        
+        .zoom-level {
+            display: inline-block;
+            margin: 0 15px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 BYOC Workflow Diagram - High Quality Export</h1>
+        <p class="subtitle">Sentinel Hub Bring Your Own COG - 50TB Dataset Onboarding</p>
+        
+        <div class="instructions">
+            <h3>📋 Instructions for High-Quality Export:</h3>
+            <ol>
+                <li><strong>Option 1 - Native Screenshot:</strong>
+                    <ul>
+                        <li>Click "Fit Zoom for Capture" to optimize size</li>
+                        <li><strong>Windows:</strong> Win + Shift + S (Snipping Tool)</li>
+                        <li><strong>Mac:</strong> Cmd + Shift + 4 (select diagram area)</li>
+                        <li><strong>Linux:</strong> Use your preferred screenshot tool</li>
+                    </ul>
+                </li>
+                <li><strong>Option 2 - Export SVG:</strong> Click "Copy as SVG" and paste into your preferred editor</li>
+                <li><strong>Option 3 - Online Tools:</strong> Copy Mermaid code and use:
+                    <ul>
+                        <li><a href="https://mermaid.live" target="_blank">mermaid.live</a> - Official editor with PNG/SVG export</li>
+                        <li><a href="https://kroki.io" target="_blank">kroki.io</a> - Generate images from code</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-primary" onclick="copyMermaidCode()">📋 Copy Mermaid Code</button>
+            <button class="btn-secondary" onclick="copySVG()">🎨 Copy as SVG</button>
+            <button class="btn-info" onclick="openMermaidLive()">🌐 Open in Mermaid.live</button>
+        </div>
+        
+        <div class="zoom-controls">
+            <button onclick="zoomOut()">🔍 Zoom -</button>
+            <span class="zoom-level" id="zoom-level">100%</span>
+            <button onclick="zoomIn()">🔍 Zoom +</button>
+            <button onclick="fitToScreen()">📐 Fit Zoom for Capture</button>
+        </div>
+        
+        <div id="diagram-container">
+            <div id="mermaid-diagram" class="mermaid">
+graph TB
+    Start([50TB Aerial Imagery<br/>AWS S3 us-west-2]) --> Assessment[Phase 1: Data Assessment & Planning]
+    
+    Assessment --> A1{Data Format<br/>Analysis}
+    A1 -->|Already COG| A2[Validate COG Compliance]
+    A1 -->|Not COG| A3[Plan COG Conversion]
+    
+    A2 --> Validation1{COG Validation}
+    Validation1 -->|Pass| ValidCOG[✓ Valid COGs]
+    Validation1 -->|Fail| A3
+    
+    A3 --> A4[Inventory Creation]
+    A4 --> A5{Conversion<br/>Strategy}
+    A5 -->|In-place AWS| A6[Convert in AWS EC2]
+    A5 -->|Transfer First| A7[Transfer then Convert]
+    
+    A6 --> ConvGDAL[GDAL COG Conversion<br/>Settings:<br/>- COMPRESS=DEFLATE/ZSTD<br/>- BLOCKSIZE=1024<br/>- RESAMPLING=AVERAGE<br/>- Check Overviews]
+    A7 --> Transfer
+    
+    ConvGDAL --> A8[Validate Conversions]
+    A8 --> ValidCOG
+    
+    ValidCOG --> Transfer[Phase 2: Data Transfer Strategy]
+    
+    Transfer --> T1{Choose Transfer<br/>Method}
+    T1 -->|Option A| T2[Direct S3-to-S3 Transfer<br/>AWS DataSync or Rclone]
+    T1 -->|Option B| T3[Via CreoDIAS VM<br/>Batch Download/Upload]
+    T1 -->|Option C| T4[Hybrid: Keep in AWS S3<br/>Cross-Region Access]
+    
+    T2 --> T5[Setup CreoDIAS S3 Bucket]
+    T3 --> T5
+    T4 --> T6[Configure Cross-Region<br/>Bucket Policy]
+    
+    T5 --> T7[Region Selection]
+    T7 --> T8[Recommended: WAW3-2<br/>Most Computing Resources]
+    
+    T6 --> BucketSetup
+    T8 --> BucketSetup[Phase 3: Bucket Configuration]
+    
+    BucketSetup --> B1[Create S3 Bucket in CreoDIAS]
+    B1 --> B2[Configure Bucket Policy]
+    B2 --> B3[Grant Read Access to<br/>Sentinel Hub Principal:<br/>arn:aws:iam::ddf4c98b5e6647f0a246f0624c8341d9:root]
+    
+    B3 --> B4[Set Permissions:<br/>s3:GetBucketLocation<br/>s3:ListBucket<br/>s3:GetObject]
+    
+    B4 --> B5{Bucket in<br/>CreoDIAS?}
+    B5 -->|Yes| B6[Use Format:<br/>PROJECT_ID:bucket_name]
+    B5 -->|No AWS| B7[Use bucket_name only<br/>+ storage_id parameter]
+    
+    B6 --> CollectionSetup
+    B7 --> CollectionSetup[Phase 4: Collection Configuration]
+    
+    CollectionSetup --> C1[Access Dashboard or API]
+    C1 --> C2[Create BYOC Collection]
+    C2 --> C3[Set Collection Name]
+    C3 --> C4[Set S3 Bucket Name]
+    C4 --> C5[Set Storage Identifier<br/>waw3-1, waw3-2, or waw4-1]
+    
+    C5 --> C6{Band<br/>Configuration}
+    C6 -->|Auto| C7[Let System Auto-Configure<br/>From First Tile]
+    C6 -->|Manual| C8[Define Band Structure]
+    
+    C8 --> C9[Configure Each Band:<br/>- Name valid JS identifier<br/>- Source file name<br/>- bandIndex 1-based<br/>- bitDepth<br/>- sampleFormat INT/UINT/FLOAT]
+    
+    C7 --> C10[Configure NoData Value]
+    C9 --> C10
+    C10 --> C11[Set Collection Metadata]
+    
+    C11 --> TilePrep[Phase 5: Tile Organization]
+    
+    TilePrep --> TP1[Organize Data Structure]
+    TP1 --> TP2[Define Tile Paths<br/>with BAND Placeholder]
+    TP2 --> TP3[Example Structure:<br/>folder/tile_001/BAND.tiff<br/>folder/tile_002/BAND.tiff]
+    
+    TP3 --> TP4[Generate Cover Geometries]
+    TP4 --> TP5{Cover Geometry<br/>Method}
+    TP5 -->|Simple| TP6[Use Bounding Box<br/>Default Option]
+    TP5 -->|Precise| TP7[Generate with GDAL<br/>gdal_trace_outline]
+    
+    TP7 --> TP8[Convert to GeoJSON<br/>Set CRS]
+    TP8 --> TP9[Validate <100 Points]
+    TP6 --> Ingestion
+    TP9 --> Ingestion[Phase 6: Tile Ingestion]
+    
+    Ingestion --> I1{Ingestion<br/>Method}
+    I1 -->|Dashboard| I2[Manual Tile Addition<br/>via Web Interface]
+    I1 -->|API| I3[Automated Batch Ingestion]
+    I1 -->|Tool| I4[Use Sentinel Hub BYOC Tool<br/>Docker/JAR]
+    
+    I2 --> I5[Add Tiles One by One]
+    I3 --> I6[Prepare Ingestion Script]
+    I4 --> I7[Configure BYOC Tool]
+    
+    I6 --> I8[Python/Bash Script<br/>with sentinelhub-py]
+    I7 --> I9[Set Parameters:<br/>Collection ID<br/>Tile Paths<br/>Sensing Times<br/>Cover Geometries]
+    
+    I5 --> I10[For Each Tile Provide:<br/>- Path with BAND placeholder<br/>- Sensing Time ISO 8601<br/>- Cover Geometry GeoJSON<br/>- Optional Metadata]
+    I8 --> I10
+    I9 --> I10
+    
+    I10 --> I11[Batch Processing Strategy]
+    I11 --> I12[Chunk Ingestion:<br/>Process 100-1000 tiles<br/>per batch]
+    
+    I12 --> I13[Monitor Ingestion Status]
+    I13 --> I14{Ingestion<br/>Success?}
+    I14 -->|Failed| I15[Check Error Logs]
+    I14 -->|Success| I16[Tile Status: INGESTED]
+    
+    I15 --> I17[Common Issues:<br/>- Invalid COG format<br/>- Permissions error<br/>- Mismatched bands<br/>- Invalid cover geometry<br/>- Path errors]
+    I17 --> I18[Fix Issues]
+    I18 --> I13
+    
+    I16 --> Validation[Phase 7: Validation & Testing]
+    
+    Validation --> V1[Wait for Metadata Update]
+    V1 --> V2[Check Collection Metadata:<br/>- extent<br/>- hasSensingTimes<br/>- fromSensingTime<br/>- toSensingTime]
+    
+    V2 --> V3[Test Data Access]
+    V3 --> V4[Create Test Evalscript]
+    V4 --> V5[Use Process API Request]
+    V5 --> V6[Test Different Tiles]
+    V6 --> V7[Validate Output Quality]
+    
+    V7 --> V8{Quality<br/>Check?}
+    V8 -->|Issues| V9[Debug Issues:<br/>- Check band names<br/>- Verify projections<br/>- Review overviews<br/>- Check dataMask]
+    V8 -->|Pass| V10[✓ Validation Complete]
+    
+    V9 --> V11[Reingest if Needed]
+    V11 --> I13
+    
+    V10 --> Optimization[Phase 8: Optimization]
+    
+    Optimization --> O1[Performance Tuning]
+    O1 --> O2[Review Processing Units Usage]
+    O2 --> O3[Optimize Evalscripts]
+    O3 --> O4[Configure Mosaicking<br/>SIMPLE/ORBIT/TILE]
+    
+    O4 --> O5[Set Up Monitoring]
+    O5 --> O6[Configure Copernicus Browser Access]
+    O6 --> O7[Document Collection:<br/>- Band descriptions<br/>- Units<br/>- Value ranges<br/>- Usage guidelines]
+    
+    O7 --> Final[Phase 9: Production Deployment]
+    
+    Final --> F1[Enable Collection in<br/>Copernicus Browser]
+    F1 --> F2[Share Collection ID<br/>with Users]
+    F2 --> F3[Monitor Usage & Performance]
+    F3 --> F4[Plan Maintenance:<br/>- Data updates<br/>- Reingest strategy<br/>- Collection metadata updates]
+    
+    F4 --> Complete([✓ BYOC Onboarding Complete<br/>50TB Dataset Ready])
+    
+    style Start fill:#e1f5ff
+    style Complete fill:#d4edda
+    style Assessment fill:#fff3cd
+    style Transfer fill:#fff3cd
+    style BucketSetup fill:#fff3cd
+    style CollectionSetup fill:#fff3cd
+    style TilePrep fill:#fff3cd
+    style Ingestion fill:#fff3cd
+    style Validation fill:#fff3cd
+    style Optimization fill:#fff3cd
+    style Final fill:#fff3cd
+    style ValidCOG fill:#d4edda
+    style V10 fill:#d4edda
+    style I16 fill:#d4edda
+            </div>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Note:</strong> For maximum quality, we recommend using <a href="https://mermaid.live" target="_blank"><strong>mermaid.live</strong></a> which allows direct export to high-resolution PNG (up to 4K) or vector SVG.
+        </div>
+        
+        <div class="success" id="success-msg">
+            ✅ Code copied to clipboard!
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+
+        let currentZoom = 1.0;
+
+        function copyMermaidCode() {
+            const code = document.querySelector('.mermaid').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                showSuccess();
+            });
+        }
+
+        function copySVG() {
+            const svg = document.querySelector('#mermaid-diagram svg');
+            if (svg) {
+                const svgData = new XMLSerializer().serializeToString(svg);
+                navigator.clipboard.writeText(svgData).then(() => {
+                    showSuccess();
+                });
+            }
+        }
+
+        function openMermaidLive() {
+            const code = document.querySelector('.mermaid').textContent;
+            const encoded = encodeURIComponent(code);
+            window.open(`https://mermaid.live/edit#pako:${btoa(code)}`, '_blank');
+        }
+
+        function showSuccess() {
+            const msg = document.getElementById('success-msg');
+            msg.style.display = 'block';
+            setTimeout(() => {
+                msg.style.display = 'none';
+            }, 3000);
+        }
+
+        function zoomIn() {
+            currentZoom += 0.1;
+            applyZoom();
+        }
+
+        function zoomOut() {
+            if (currentZoom > 0.3) {
+                currentZoom -= 0.1;
+                applyZoom();
+            }
+        }
+
+        function fitToScreen() {
+            currentZoom = 0.7;
+            applyZoom();
+        }
+
+        function applyZoom() {
+            const diagram = document.getElementById('mermaid-diagram');
+            diagram.style.transform = `scale(${currentZoom})`;
+            diagram.style.transformOrigin = 'top center';
+            document.getElementById('zoom-level').textContent = Math.round(currentZoom * 100) + '%';
+        }
+    </script>
+</body>
+</html>
