@@ -42,13 +42,937 @@ This project leverages the following key resources and services:
 
 
 
-## Task 2:
+## Task 2: Sentinel Hub BYOC Onboarding
 
+#### Summary
 
+This guide outlines the complete workflow for onboarding a 50TB archive of high-resolution aerial imagery from AWS S3 (us-west-2) to the Sentinel Hub BYOC API for access via Copernicus Browser on the CDSE ecosystem (CreoDIAS).
 
+**Key Challenges:**
+- Large dataset volume (50TB)
+- Cross-cloud provider migration (AWS → CreoDIAS)
+- Regional difference (us-west-2 → WAW regions)
+- COG format requirements
+- Performance optimization for large-scale access
 
-### References
+---
+
+## Phase 1: Data Assessment & Planning
+
+### 1.1 Initial Data Inventory
+
+**Objective:** Understand your current data structure and requirements.
+
+**Actions:**
+```bash
+# Create inventory of existing data
+aws s3 ls s3://your-bucket/ --recursive > inventory.txt
+
+# Analyze file types and sizes
+aws s3 ls s3://your-bucket/ --recursive --human-readable --summarize
+
+# Sample file analysis
+aws s3 cp s3://your-bucket/sample_image.tif ./sample.tif
+gdalinfo sample.tif
+```
+
+**Key Questions to Answer:**
+- Current format (GeoTIFF, JPEG2000, other)?
+- Number of tiles/images?
+- Bands per image?
+- Bit depth per band?
+- Projection system(s)?
+- Presence of overviews?
+- Current compression?
+- NoData values defined?
+
+### 1.2 COG Validation/Conversion Strategy
+
+**COG Requirements:**
+- Internal tile size: 256×256 to 2048×2048
+- Header size: < 1 MB
+- Supported projections: WGS84, WebMercator, UTM zones, Europe LAEA
+- Photometric interpretation: 1 (black) or 2 (RGB)
+- No polar crossing
+- Compression: DEFLATE, ZLIB, ZSTD (recommended), LZW, PACKBITS
+- Max 100 bands per file
+- Chunky format: max 10 bands per file
+
+**Recommended GDAL Conversion Command:**
+```bash
+gdal_translate -of COG \
+  -co COMPRESS=ZSTD \
+  -co BLOCKSIZE=1024 \
+  -co RESAMPLING=AVERAGE \
+  -co OVERVIEWS=IGNORE_EXISTING \
+  -co PREDICTOR=YES \
+  -a_nodata 0 \
+  input.tif output_cog.tif
+```
+
+**For Older GDAL Versions (<3.1):**
+```bash
+# Step 1: Convert to GeoTIFF
+gdal_translate -of GTIFF -a_nodata 0 input.tif intermediate.tif
+
+# Step 2: Build overviews
+gdaladdo -r average --config GDAL_TIFF_OVR_BLOCKSIZE 1024 \
+  intermediate.tif 2 4 8 16 32
+
+# Step 3: Create COG
+gdal_translate \
+  -co TILED=YES \
+  -co COPY_SRC_OVERVIEWS=YES \
+  --config GDAL_TIFF_OVR_BLOCKSIZE 1024 \
+  -co BLOCKXSIZE=1024 \
+  -co BLOCKYSIZE=1024 \
+  -co COMPRESS=DEFLATE \
+  -co PREDICTOR=2 \
+  intermediate.tif output_cog.tif
+```
+
+**Validation:**
+```bash
+# Validate COG compliance
+rio cogeo validate output_cog.tif
+
+# Or use GDAL
+gdalinfo output_cog.tif | grep -A 10 "Overviews"
+```
+
+---
+
+## Phase 2: Data Transfer Strategy
+
+### 2.1 Transfer Options Analysis
+
+#### Option A: Direct S3-to-S3 Transfer (RECOMMENDED for 50TB)
+
+**Advantages:**
+- Fastest for large datasets
+- No intermediate storage needed
+- Automated and scriptable
+- Reduced egress costs with proper planning
+
+**Tools:**
+1. **AWS DataSync** (Preferred for large volumes)
+   - Set up DataSync agent
+   - Configure source: AWS S3 us-west-2
+   - Configure destination: CreoDIAS S3
+   - Schedule transfer during off-peak hours
+
+2. **Rclone** (Flexible open-source option)
+```bash
+# Configure rclone
+rclone config
+
+# Transfer with multiple threads
+rclone sync aws-s3:source-bucket creodias-s3:dest-bucket \
+  --transfers 32 \
+  --checkers 16 \
+  --s3-chunk-size 128M \
+  --s3-upload-concurrency 8 \
+  --progress
+```
+
+#### Option B: CreoDIAS VM as Transfer Hub
+
+**Use Case:** When you need data transformation during transfer
+
+**Setup:**
+```bash
+# Launch high-bandwidth VM on CreoDIAS
+# Choose: Large instance with high network throughput
+
+# Install tools
+sudo apt-get update
+sudo apt-get install -y awscli rclone gdal-bin python3-pip
+
+# Configure parallel downloads
+aws configure set default.s3.max_concurrent_requests 100
+aws configure set default.s3.max_queue_size 10000
+```
+
+**Transfer Script:**
+```bash
+#!/bin/bash
+# parallel_transfer.sh
+
+SOURCE_BUCKET="s3://aws-source-bucket"
+DEST_BUCKET="creodias-destination-bucket"
+TEMP_DIR="/mnt/large-volume"
+
+# Download, convert, upload in parallel
+for file in $(aws s3 ls $SOURCE_BUCKET --recursive | awk '{print $4}'); do
+  {
+    aws s3 cp "$SOURCE_BUCKET/$file" "$TEMP_DIR/" && \
+    gdal_translate -of COG ... "$TEMP_DIR/$file" "$TEMP_DIR/cog_$file" && \
+    aws s3 cp "$TEMP_DIR/cog_$file" s3://$DEST_BUCKET/ && \
+    rm "$TEMP_DIR/$file" "$TEMP_DIR/cog_$file"
+  } &
+  
+  # Limit concurrent processes
+  if [[ $(jobs -r -p | wc -l) -ge 8 ]]; then wait -n; fi
+done
+
+wait
+```
+
+#### Option C: Hybrid Approach (Keep Data in AWS)
+
+**Consideration:** May result in higher latency and cross-region data transfer costs
+
+**Only viable if:**
+- Testing/proof-of-concept phase
+- Cost-benefit analysis favors cross-cloud access
+- Data update frequency is high
+
+---
+
+## Phase 3: CreoDIAS Bucket Configuration
+
+### 3.1 Bucket Creation
+
+**Region Selection:**
+- **WAW3-2**: Recommended for EO workloads (most computing resources)
+- **WAW3-1**: Alternative in same data center
+- **WAW4-1**: Third option
+
+**Creation via CLI:**
+```bash
+# Using AWS CLI with CreoDIAS credentials
+aws s3 mb s3://your-byoc-bucket --endpoint-url=https://s3.waw3-2.cloudferro.com
+
+# Or via CreoDIAS dashboard
+# Navigate to: Object Storage → Create Bucket
+```
+
+### 3.2 Bucket Policy Configuration
+
+**Required Policy Structure:**
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Sentinel Hub BYOC Access",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::ddf4c98b5e6647f0a246f0624c8341d9:root"
+            },
+            "Action": [
+                "s3:GetBucketLocation",
+                "s3:ListBucket",
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::your-byoc-bucket",
+                "arn:aws:s3:::your-byoc-bucket/*"
+            ]
+        }
+    ]
+}
+```
+
+**Apply Policy:**
+```bash
+# Save policy to file: bucket_policy.json
+aws s3api put-bucket-policy \
+  --bucket your-byoc-bucket \
+  --policy file://bucket_policy.json \
+  --endpoint-url=https://s3.waw3-2.cloudferro.com
+```
+
+**Python Script Alternative:**
+```python
+import boto3
+
+s3_client = boto3.client(
+    's3',
+    endpoint_url='https://s3.waw3-2.cloudferro.com',
+    aws_access_key_id='YOUR_ACCESS_KEY',
+    aws_secret_access_key='YOUR_SECRET_KEY'
+)
+
+bucket_policy = {
+    "Version": "2012-10-17",
+    "Statement": [{
+        "Sid": "Sentinel Hub BYOC Access",
+        "Effect": "Allow",
+        "Principal": {"AWS": "arn:aws:iam::ddf4c98b5e6647f0a246f0624c8341d9:root"},
+        "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:GetObject"],
+        "Resource": [
+            f"arn:aws:s3:::your-byoc-bucket",
+            f"arn:aws:s3:::your-byoc-bucket/*"
+        ]
+    }]
+}
+
+s3_client.put_bucket_policy(
+    Bucket='your-byoc-bucket',
+    Policy=json.dumps(bucket_policy)
+)
+```
+
+---
+
+## Phase 4: BYOC Collection Configuration
+
+### 4.1 Collection Creation via API
+
+**Prerequisites:**
+- Sentinel Hub OAuth2 client credentials
+- Python with `sentinelhub` library
+
+**Installation:**
+```bash
+pip install sentinelhub
+```
+
+**Configuration:**
+```python
+from sentinelhub import SHConfig
+
+config = SHConfig()
+config.sh_client_id = 'YOUR_CLIENT_ID'
+config.sh_client_secret = 'YOUR_CLIENT_SECRET'
+config.sh_base_url = 'https://sh.dataspace.copernicus.eu'
+config.save()
+```
+
+**Create Collection:**
+```python
+import requests
+from sentinelhub import SHConfig
+
+config = SHConfig()
+token = config.sh_auth_token
+
+headers = {
+    'Authorization': f'Bearer {token}',
+    'Content-Type': 'application/json'
+}
+
+collection_data = {
+    "name": "Aerial Imagery 50TB Collection",
+    "s3Bucket": "PROJECT_ID:your-byoc-bucket",  # For CreoDIAS
+    "storageId": "waw3-2",
+    "additionalData": {
+        "bands": {
+            "Red": {
+                "source": "RGB",
+                "bandIndex": 1,
+                "bitDepth": 16,
+                "sampleFormat": "UINT"
+            },
+            "Green": {
+                "source": "RGB",
+                "bandIndex": 2,
+                "bitDepth": 16,
+                "sampleFormat": "UINT"
+            },
+            "Blue": {
+                "source": "RGB",
+                "bandIndex": 3,
+                "bitDepth": 16,
+                "sampleFormat": "UINT"
+            },
+            "NIR": {
+                "source": "NIR",
+                "bandIndex": 1,
+                "bitDepth": 16,
+                "sampleFormat": "UINT"
+            }
+        },
+        "noDataValue": 0
+    }
+}
+
+response = requests.post(
+    'https://sh.dataspace.copernicus.eu/api/v1/byoc/collections',
+    headers=headers,
+    json=collection_data
+)
+
+collection_id = response.json()['data']['id']
+print(f"Collection created with ID: {collection_id}")
+```
+
+### 4.2 Band Configuration Best Practices
+
+**Band Naming Conventions:**
+- Use valid JavaScript identifiers
+- Avoid reserved keywords
+- Use descriptive names: Red, Green, Blue, NIR, SWIR1, etc.
+- Maintain consistency across all tiles
+
+**Sample Format Options:**
+- `UINT`: Unsigned integers (most common for imagery)
+- `INT`: Signed integers
+- `FLOAT`: Floating point (for derived products)
+
+**Multi-file Organization:**
+```
+tile_001/
+  ├── RGB_(BAND).tif       # Contains Red, Green, Blue
+  ├── NIR_(BAND).tif       # Contains NIR band
+  └── mask_(BAND).tif      # Contains quality/cloud mask
+
+Path in BYOC: "tile_001/(BAND)_(BAND).tif"
+```
+
+---
+
+## Phase 5: Tile Organization & Cover Geometries
+
+### 5.1 Directory Structure
+
+**Recommended Structure:**
+```
+your-byoc-bucket/
+├── tiles/
+│   ├── tile_001/
+│   │   ├── RGB.tif
+│   │   ├── NIR.tif
+│   │   └── metadata.json
+│   ├── tile_002/
+│   │   ├── RGB.tif
+│   │   ├── NIR.tif
+│   │   └── metadata.json
+│   └── ...
+└── cover_geometries/
+    ├── tile_001.geojson
+    ├── tile_002.geojson
+    └── ...
+```
+
+### 5.2 Cover Geometry Generation
+
+**Method 1: GDAL trace_outline**
+```bash
+#!/bin/bash
+# generate_cover_geometry.sh
+
+INPUT_FILE="$1"
+OUTPUT_WKT="$2"
+
+# Generate outline
+gdal_trace_outline "$INPUT_FILE" \
+  -out-cs en \
+  -wkt-out "$OUTPUT_WKT"
+```
+
+**Method 2: Simplified with GDAL Python**
+```python
+from osgeo import gdal, ogr, osr
+import json
+
+def create_cover_geometry(raster_path):
+    """Generate cover geometry from raster footprint"""
+    ds = gdal.Open(raster_path)
+    if not ds:
+        raise ValueError(f"Cannot open {raster_path}")
+    
+    # Get geotransform and size
+    gt = ds.GetGeoTransform()
+    cols = ds.RasterXSize
+    rows = ds.RasterYSize
+    
+    # Calculate corners
+    corners = [
+        (gt[0], gt[3]),
+        (gt[0] + cols * gt[1], gt[3]),
+        (gt[0] + cols * gt[1], gt[3] + rows * gt[5]),
+        (gt[0], gt[3] + rows * gt[5]),
+        (gt[0], gt[3])
+    ]
+    
+    # Get projection
+    srs = osr.SpatialReference()
+    srs.ImportFromWkt(ds.GetProjection())
+    epsg_code = srs.GetAttrValue('AUTHORITY', 1)
+    
+    # Create GeoJSON
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [corners],
+        "crs": {
+            "type": "name",
+            "properties": {
+                "name": f"urn:ogc:def:crs:EPSG::{epsg_code}"
+            }
+        }
+    }
+    
+    ds = None
+    return geometry
+
+# Usage
+cover_geom = create_cover_geometry("tile_001/RGB.tif")
+print(json.dumps(cover_geom, indent=2))
+```
+
+**Simplification (if needed):**
+```python
+from shapely.geometry import shape
+from shapely.wkt import dumps
+
+def simplify_geometry(geojson_geom, tolerance=10):
+    """Simplify geometry to reduce point count"""
+    geom = shape(geojson_geom)
+    simplified = geom.simplify(tolerance, preserve_topology=True)
+    
+    # Convert back to GeoJSON format
+    return {
+        "type": "Polygon",
+        "coordinates": [list(simplified.exterior.coords)],
+        "crs": geojson_geom.get("crs")
+    }
+```
+
+---
+
+## Phase 6: Automated Tile Ingestion
+
+### 6.1 Batch Ingestion Script
+
+**Complete Python Implementation:**
+```python
+import requests
+import json
+from pathlib import Path
+from sentinelhub import SHConfig
+from datetime import datetime
+import time
+
+class BYOCIngester:
+    def __init__(self, collection_id):
+        self.config = SHConfig()
+        self.collection_id = collection_id
+        self.base_url = 'https://sh.dataspace.copernicus.eu/api/v1/byoc'
+        self.headers = {
+            'Authorization': f'Bearer {self.config.sh_auth_token}',
+            'Content-Type': 'application/json'
+        }
+    
+    def ingest_tile(self, tile_data):
+        """Ingest a single tile"""
+        url = f'{self.base_url}/collections/{self.collection_id}/tiles'
+        
+        payload = {
+            "path": tile_data['path'],
+            "sensingTime": tile_data['sensing_time'],
+            "coverGeometry": tile_data.get('cover_geometry')
+        }
+        
+        try:
+            response = requests.post(url, headers=self.headers, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.HTTPError as e:
+            print(f"Error ingesting {tile_data['path']}: {e}")
+            print(f"Response: {e.response.text}")
+            return None
+    
+    def check_tile_status(self, tile_id):
+        """Check ingestion status"""
+        url = f'{self.base_url}/collections/{self.collection_id}/tiles/{tile_id}'
+        response = requests.get(url, headers=self.headers)
+        return response.json()['data']['status']
+    
+    def batch_ingest(self, tiles_list, batch_size=100):
+        """Ingest tiles in batches"""
+        total = len(tiles_list)
+        successful = 0
+        failed = []
+        
+        for i in range(0, total, batch_size):
+            batch = tiles_list[i:i+batch_size]
+            print(f"Processing batch {i//batch_size + 1} ({i+1}-{min(i+batch_size, total)} of {total})")
+            
+            for tile_data in batch:
+                result = self.ingest_tile(tile_data)
+                if result:
+                    successful += 1
+                    print(f"✓ Ingested: {tile_data['path']}")
+                else:
+                    failed.append(tile_data['path'])
+                
+                # Rate limiting - be respectful
+                time.sleep(0.5)
+            
+            print(f"Batch complete. Success: {successful}, Failed: {len(failed)}")
+        
+        return successful, failed
+
+# Usage Example
+if __name__ == "__main__":
+    collection_id = "YOUR_COLLECTION_ID"
+    
+    # Prepare tile list
+    tiles = []
+    for i in range(1, 1001):  # Example: 1000 tiles
+        tile_data = {
+            'path': f'tiles/tile_{i:04d}/(BAND).tif',
+            'sensing_time': f'2024-{i%12+1:02d}-15T10:00:00Z',
+            'cover_geometry': None  # Or load from file
+        }
+        tiles.append(tile_data)
+    
+    # Ingest
+    ingester = BYOCIngester(collection_id)
+    successful, failed = ingester.batch_ingest(tiles, batch_size=50)
+    
+    print(f"\n=== Ingestion Summary ===")
+    print(f"Total tiles: {len(tiles)}")
+    print(f"Successful: {successful}")
+    print(f"Failed: {len(failed)}")
+    
+    if failed:
+        print("\nFailed tiles:")
+        for path in failed:
+            print(f"  - {path}")
+```
+
+### 6.2 Monitoring & Error Handling
+
+**Status Check Script:**
+```python
+def monitor_collection_status(collection_id, expected_tiles):
+    """Monitor ingestion progress"""
+    config = SHConfig()
+    headers = {'Authorization': f'Bearer {config.sh_auth_token}'}
+    
+    url = f'https://sh.dataspace.copernicus.eu/api/v1/byoc/collections/{collection_id}/tiles'
+    
+    while True:
+        response = requests.get(url, headers=headers)
+        tiles = response.json()['data']
+        
+        status_counts = {}
+        for tile in tiles:
+            status = tile['status']
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        print(f"\n=== Collection Status ===")
+        print(f"Total tiles: {len(tiles)}/{expected_tiles}")
+        for status, count in status_counts.items():
+            print(f"{status}: {count}")
+        
+        if status_counts.get('INGESTED', 0) == expected_tiles:
+            print("\n✓ All tiles successfully ingested!")
+            break
+        
+        if status_counts.get('FAILED', 0) > 0:
+            print(f"\n⚠ {status_counts['FAILED']} tiles failed")
+            # Handle failed tiles
+        
+        time.sleep(60)  # Check every minute
+
+# Usage
+monitor_collection_status("YOUR_COLLECTION_ID", expected_tiles=1000)
+```
+
+---
+
+## Phase 7: Validation & Testing
+
+### 7.1 Collection Metadata Validation
+
+```python
+def validate_collection(collection_id):
+    """Validate collection configuration and metadata"""
+    config = SHConfig()
+    headers = {'Authorization': f'Bearer {config.sh_auth_token}'}
+    
+    url = f'https://sh.dataspace.copernicus.eu/api/v1/byoc/collections/{collection_id}'
+    response = requests.get(url, headers=headers)
+    collection = response.json()['data']
+    
+    print("=== Collection Metadata ===")
+    print(f"Name: {collection['name']}")
+    print(f"Bucket: {collection['s3Bucket']}")
+    print(f"Storage ID: {collection.get('storageId', 'default')}")
+    
+    # Check additional data
+    if 'additionalData' in collection:
+        metadata = collection['additionalData']
+        print(f"\nExtent: {metadata.get('extent')}")
+        print(f"Has Sensing Times: {metadata.get('hasSensingTimes')}")
+        print(f"From: {metadata.get('fromSensingTime')}")
+        print(f"To: {metadata.get('toSensingTime')}")
+        
+        # Band information
+        if 'bands' in metadata:
+            print(f"\nBands:")
+            for band_name, band_info in metadata['bands'].items():
+                print(f"  - {band_name}: {band_info}")
+
+validate_collection("YOUR_COLLECTION_ID")
+```
+
+### 7.2 Data Access Testing
+
+**Test Evalscript:**
+```javascript
+//VERSION=3
+
+function setup() {
+  return {
+    input: ["Red", "Green", "Blue", "dataMask"],
+    output: { bands: 4 }
+  };
+}
+
+function evaluatePixel(sample) {
+  // True color composite with dataMask
+  return [
+    sample.Red / 10000,
+    sample.Green / 10000,
+    sample.Blue / 10000,
+    sample.dataMask
+  ];
+}
+```
+
+**Process API Request:**
+```python
+from sentinelhub import (
+    SHConfig, BBox, CRS, MimeType, 
+    SentinelHubRequest, DataCollection
+)
+
+def test_byoc_access(collection_id, bbox, date):
+    """Test data access via Process API"""
+    config = SHConfig()
+    
+    evalscript = """
+    //VERSION=3
+    function setup() {
+      return {
+        input: ["Red", "Green", "Blue"],
+        output: { bands: 3, sampleType: "UINT16" }
+      };
+    }
+    
+    function evaluatePixel(sample) {
+      return [sample.Red, sample.Green, sample.Blue];
+    }
+    """
+    
+    request = SentinelHubRequest(
+        evalscript=evalscript,
+        input_data=[
+            SentinelHubRequest.input_data(
+                data_collection=DataCollection.BYOC,
+                collection_id=collection_id,
+                time_interval=(date, date)
+            )
+        ],
+        responses=[
+            SentinelHubRequest.output_response('default', MimeType.TIFF)
+        ],
+        bbox=bbox,
+        size=[512, 512],
+        config=config
+    )
+    
+    try:
+        data = request.get_data()[0]
+        print(f"✓ Successfully retrieved data: shape {data.shape}")
+        return data
+    except Exception as e:
+        print(f"✗ Error accessing data: {e}")
+        return None
+
+# Usage
+bbox = BBox([14.0, 45.0, 14.1, 45.1], crs=CRS.WGS84)
+date = '2024-06-15'
+test_byoc_access("YOUR_COLLECTION_ID", bbox, date)
+```
+
+---
+
+## Phase 8: Performance Optimization
+
+### 8.1 Processing Unit Optimization
+
+**Evalscript Best Practices:**
+- Minimize computations
+- Use appropriate sample types
+- Leverage dataMask efficiently
+- Consider mosaicking strategy
+
+**Mosaicking Options:**
+```javascript
+// SIMPLE - fastest, uses first valid pixel
+function setup() {
+  return {
+    input: ["Red", "Green", "Blue"],
+    mosaicking: "SIMPLE",
+    output: { bands: 3 }
+  };
+}
+
+// TILE - allows custom logic per tile
+function setup() {
+  return {
+    input: ["Red", "Green", "Blue", "dataMask"],
+    mosaicking: "TILE",
+    output: { bands: 3 }
+  };
+}
+
+function evaluatePixel(samples) {
+  // Custom mosaicking logic
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i].dataMask === 1) {
+      return [
+        samples[i].Red / 10000,
+        samples[i].Green / 10000,
+        samples[i].Blue / 10000
+      ];
+    }
+  }
+  return [0, 0, 0];
+}
+```
+
+### 8.2 Caching Strategy
+
+**For frequently accessed areas:**
+- Create WMS/WMTS layers
+- Configure appropriate zoom levels
+- Set cache expiration policies
+
+---
+
+## Phase 9: Production Deployment
+
+### 9.1 Copernicus Browser Integration
+
+1. Enable collection in Dashboard
+2. Configure visualization parameters
+3. Set default rendering
+4. Add collection description
+
+### 9.2 Documentation Template
+
+```markdown
+# Collection: Aerial Imagery 50TB
+
+## Overview
+High-resolution aerial imagery covering [region/area].
+
+## Technical Specifications
+- **Resolution:** [e.g., 0.5m/pixel]
+- **Bands:** Red, Green, Blue, NIR
+- **Bit Depth:** 16-bit unsigned integer
+- **Temporal Coverage:** [date range]
+- **Projection:** [e.g., UTM Zone 33N, EPSG:32633]
+
+## Data Usage
+
+### Band Information
+| Band | Description | Units | Typical Range |
+|------|-------------|-------|---------------|
+| Red  | Red spectral band | Digital Number | 0-10000 |
+| Green| Green spectral band | Digital Number | 0-10000 |
+| Blue | Blue spectral band | Digital Number | 0-10000 |
+| NIR  | Near Infrared | Digital Number | 0-10000 |
+
+### NoData Value
+NoData pixels are represented by value: 0
+
+### Example Evalscripts
+See [link to repository/documentation]
+
+## Access
+- Collection ID: `YOUR_COLLECTION_ID`
+- Available via: Sentinel Hub Process API, OGC services
+- Copernicus Browser: [link]
+
+## Support
+Contact: [email/support channel]
+```
+
+---
+
+## Cost Considerations
+
+### Data Transfer Costs
+- **AWS Egress (us-west-2):** ~$0.09/GB = ~$4,500 for 50TB
+- **CreoDIAS Ingress:** Typically free
+- **Storage (CreoDIAS):** Variable based on region
+
+### Processing Costs
+- Based on Processing Units (PU)
+- Optimize evalscripts to minimize PU usage
+- Monitor usage via Dashboard
+
+### Cost Optimization Strategies
+1. Transfer during off-peak hours
+2. Use efficient compression (ZSTD)
+3. Generate appropriate overview levels
+4. Implement precise cover geometries
+5. Cache frequently accessed data
+
+---
+
+## Troubleshooting Guide
+
+### Common Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Ingestion fails | Invalid COG format | Re-validate with `rio cogeo validate` |
+| Permission denied | Bucket policy incorrect | Review policy, ensure correct principal ARN |
+| Slow processing | Missing overviews | Regenerate COGs with proper overviews |
+| Gaps in rendering | Incorrect cover geometries | Regenerate precise cover geometries |
+| Band names error | Invalid JavaScript identifier | Rename bands (avoid spaces, special chars) |
+| Tile not found | Incorrect path placeholder | Verify (BAND) placeholder usage |
+
+---
+
+## Maintenance Plan
+
+### Regular Tasks
+1. **Monthly:** Review processing unit usage
+2. **Quarterly:** Validate data integrity
+3. **As needed:** Reingest updated tiles
+4. **Annually:** Review and optimize storage costs
+
+### Update Workflow
+When updating existing tiles:
+```python
+def reingest_tile(collection_id, tile_id):
+    """Reingest an existing tile after data update"""
+    config = SHConfig()
+    headers = {'Authorization': f'Bearer {config.sh_auth_token}'}
+    
+    url = f'https://sh.dataspace.copernicus.eu/api/v1/byoc/collections/{collection_id}/tiles/{tile_id}/reingest'
+    
+    response = requests.post(url, headers=headers)
+    return response.json()
+```
+
+---
+
+### References & Official Documentation
 This project leverages the following resources and services:
+1. [BYOC API Documentation](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Byoc.html)
+2. [sentinelhub-py Documentation](https://sentinelhub-py.readthedocs.io/)
+3. [CreoDIAS Documentation](https://creodias.docs.cloudferro.com/)
+
+
+
+
+
+
+
+
+
+
 
 
 
