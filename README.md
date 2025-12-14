@@ -47,604 +47,143 @@ This project leverages the following key resources and services:
 ### Summary
 
 This guide outlines the complete workflow for onboarding a 50TB archive of high-resolution aerial imagery from AWS S3 (us-west-2) to the Sentinel Hub BYOC API for access via Copernicus Browser on the CDSE ecosystem (CreoDIAS). A Mermaid code as well as an html Workflow has been added in this project in order to have a better understsandinfg of the process.
+# Sentinel Hub BYOC Onboarding Workflow  
+## High-Level Description for a 50 TB Aerial Imagery Archive
 
-**Key Challenges:**
-- Large dataset volume (50TB)
-- Cross-cloud provider migration (AWS → CreoDIAS)
-- Regional difference (us-west-2 → WAW regions)
-- COG format requirements
-- Performance optimization for large-scale access
+## Overview
 
+This document describes the conceptual workflow used to onboard a large archive (approximately 50 TB) of high-resolution aerial imagery into the Sentinel Hub *Bring Your Own COG* (BYOC) service, with the objective of making the data accessible through the Copernicus Browser within the Copernicus Data Space Ecosystem (CDSE), which operates on CreoDIAS infrastructure.
 
-
-## Phase 1: Data Assessment & Planning
-
-### 1.1 Initial Data Inventory
-
-**Objective:** Understand your current data structure and requirements.
-
-**Actions:**
-```bash
-# Create inventory of existing data
-aws s3 ls s3://your-bucket/ --recursive > inventory.txt
-
-# Analyze file types and sizes
-aws s3 ls s3://your-bucket/ --recursive --human-readable --summarize
-
-# Sample file analysis
-aws s3 cp s3://your-bucket/sample_image.tif ./sample.tif
-gdalinfo sample.tif
-```
-
-**Key Questions to Answer:**
-- Current format (GeoTIFF, JPEG2000, other)?
-- Number of tiles/images?
-- Bands per image?
-- Bit depth per band?
-- Projection system(s)?
-- Presence of overviews?
-- Current compression?
-- NoData values defined?
-
-### 1.2 COG Validation/Conversion Strategy
-
-**COG Requirements:**
-- Internal tile size: 256×256 to 2048×2048
-- Header size: < 1 MB
-- Supported projections: WGS84, WebMercator, UTM zones, Europe LAEA
-- Photometric interpretation: 1 (black) or 2 (RGB)
-- No polar crossing
-- Compression: DEFLATE, ZLIB, ZSTD (recommended), LZW, PACKBITS
-- Max 100 bands per file
-- Chunky format: max 10 bands per file
-
-**Recommended GDAL Conversion Command:**
-```bash
-gdal_translate -of COG \
-  -co COMPRESS=ZSTD \
-  -co BLOCKSIZE=1024 \
-  -co RESAMPLING=AVERAGE \
-  -co OVERVIEWS=IGNORE_EXISTING \
-  -co PREDICTOR=YES \
-  -a_nodata 0 \
-  input.tif output_cog.tif
-```
-
-**For Older GDAL Versions (<3.1):**
-```bash
-# Step 1: Convert to GeoTIFF
-gdal_translate -of GTIFF -a_nodata 0 input.tif intermediate.tif
-
-# Step 2: Build overviews
-gdaladdo -r average --config GDAL_TIFF_OVR_BLOCKSIZE 1024 \
-  intermediate.tif 2 4 8 16 32
-
-# Step 3: Create COG
-gdal_translate \
-  -co TILED=YES \
-  -co COPY_SRC_OVERVIEWS=YES \
-  --config GDAL_TIFF_OVR_BLOCKSIZE 1024 \
-  -co BLOCKXSIZE=1024 \
-  -co BLOCKYSIZE=1024 \
-  -co COMPRESS=DEFLATE \
-  -co PREDICTOR=2 \
-  intermediate.tif output_cog.tif
-```
-
-**Validation:**
-```bash
-# Validate COG compliance
-rio cogeo validate output_cog.tif
-
-# Or use GDAL
-gdalinfo output_cog.tif | grep -A 10 "Overviews"
-```
+The emphasis is placed on **workflow design, decision-making, and operational reasoning**, rather than on detailed implementation or automation scripts.
 
 ---
 
-## Phase 2: Data Transfer Strategy
+## Phase 1 – Data Assessment and Initial Planning
 
-### 2.1 Transfer Options Analysis
+The onboarding process starts with a thorough understanding of the source dataset, which is currently hosted in a private AWS S3 bucket in the us-west-2 region. This phase is critical to avoid rework later in the process.
 
-#### Option A: Direct S3-to-S3 Transfer (RECOMMENDED for 50TB)
+The main goal is to characterise the data and identify any constraints that may affect BYOC compatibility. Typical aspects reviewed during this phase include:
 
-**Advantages:**
-- Fastest for large datasets
-- No intermediate storage needed
-- Automated and scriptable
-- Reduced egress costs with proper planning
+- Overall data volume and number of images or tiles  
+- Band composition (e.g. RGB, RGB + NIR)  
+- Coordinate reference systems in use  
+- Bit depth, compression, and NoData handling  
+- Presence or absence of overviews  
 
-**Tools:**
-1. **AWS DataSync** (Preferred for large volumes)
-   - Set up DataSync agent
-   - Configure source: AWS S3 us-west-2
-   - Configure destination: CreoDIAS S3
-   - Schedule transfer during off-peak hours
-
-2. **Rclone** (Flexible open-source option)
-```bash
-# Configure rclone
-rclone config
-
-# Transfer with multiple threads
-rclone sync aws-s3:source-bucket creodias-s3:dest-bucket \
-  --transfers 32 \
-  --checkers 16 \
-  --s3-chunk-size 128M \
-  --s3-upload-concurrency 8 \
-  --progress
-```
-
-#### Option B: CreoDIAS VM as Transfer Hub
-
-**Use Case:** When you need data transformation during transfer
-
-**Setup:**
-```bash
-# Launch high-bandwidth VM on CreoDIAS
-# Choose: Large instance with high network throughput
-
-# Install tools
-sudo apt-get update
-sudo apt-get install -y awscli rclone gdal-bin python3-pip
-
-# Configure parallel downloads
-aws configure set default.s3.max_concurrent_requests 100
-aws configure set default.s3.max_queue_size 10000
-```
-
-**Transfer Script:**
-```bash
-#!/bin/bash
-# parallel_transfer.sh
-
-SOURCE_BUCKET="s3://aws-source-bucket"
-DEST_BUCKET="creodias-destination-bucket"
-TEMP_DIR="/mnt/large-volume"
-
-# Download, convert, upload in parallel
-for file in $(aws s3 ls $SOURCE_BUCKET --recursive | awk '{print $4}'); do
-  {
-    aws s3 cp "$SOURCE_BUCKET/$file" "$TEMP_DIR/" && \
-    gdal_translate -of COG ... "$TEMP_DIR/$file" "$TEMP_DIR/cog_$file" && \
-    aws s3 cp "$TEMP_DIR/cog_$file" s3://$DEST_BUCKET/ && \
-    rm "$TEMP_DIR/$file" "$TEMP_DIR/cog_$file"
-  } &
-  
-  # Limit concurrent processes
-  if [[ $(jobs -r -p | wc -l) -ge 8 ]]; then wait -n; fi
-done
-
-wait
-```
-
-#### Option C: Hybrid Approach (Keep Data in AWS)
-
-**Consideration:** May result in higher latency and cross-region data transfer costs
-
-**Only viable if:**
-- Testing/proof-of-concept phase
-- Cost-benefit analysis favors cross-cloud access
-- Data update frequency is high
+This assessment phase does not involve transformation yet. Instead, it produces a clear technical picture of the dataset and allows informed decisions about standardisation and transfer strategies.
 
 ---
 
-## Phase 3: CreoDIAS Bucket Configuration
+## Phase 2 – COG Readiness and Standardisation
 
-### 3.1 Bucket Creation
+Once the dataset is understood, the next step is to ensure that all imagery complies with Sentinel Hub BYOC requirements, which are based on Cloud Optimized GeoTIFFs (COGs).
 
-**Region Selection:**
-- **WAW3-2**: Recommended for EO workloads (most computing resources)
-- **WAW3-1**: Alternative in same data center
-- **WAW4-1**: Third option
+At a conceptual level, this phase focuses on making the data *cloud-native*. This means that each file must support efficient partial reads over HTTP and behave predictably under high-concurrency access patterns.
 
-**Creation via CLI:**
-```bash
-# Using AWS CLI with CreoDIAS credentials
-aws s3 mb s3://your-byoc-bucket --endpoint-url=https://s3.waw3-2.cloudferro.com
+The key principles applied during this phase are:
 
-# Or via CreoDIAS dashboard
-# Navigate to: Object Storage → Create Bucket
-```
+- Use of internally tiled GeoTIFFs with consistent block sizes  
+- Generation of appropriate overview levels  
+- Selection of compression methods optimised for cloud access  
+- Harmonisation of band order, naming, and projections  
 
-### 3.2 Bucket Policy Configuration
-
-**Required Policy Structure:**
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "Sentinel Hub BYOC Access",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::ddf4c98b5e6647f0a246f0624c8341d9:root"
-            },
-            "Action": [
-                "s3:GetBucketLocation",
-                "s3:ListBucket",
-                "s3:GetObject"
-            ],
-            "Resource": [
-                "arn:aws:s3:::your-byoc-bucket",
-                "arn:aws:s3:::your-byoc-bucket/*"
-            ]
-        }
-    ]
-}
-```
-
-**Apply Policy:**
-```bash
-# Save policy to file: bucket_policy.json
-aws s3api put-bucket-policy \
-  --bucket your-byoc-bucket \
-  --policy file://bucket_policy.json \
-  --endpoint-url=https://s3.waw3-2.cloudferro.com
-```
-
-**Python Script Alternative:**
-```python
-import boto3
-
-s3_client = boto3.client(
-    's3',
-    endpoint_url='https://s3.waw3-2.cloudferro.com',
-    aws_access_key_id='YOUR_ACCESS_KEY',
-    aws_secret_access_key='YOUR_SECRET_KEY'
-)
-
-bucket_policy = {
-    "Version": "2012-10-17",
-    "Statement": [{
-        "Sid": "Sentinel Hub BYOC Access",
-        "Effect": "Allow",
-        "Principal": {"AWS": "arn:aws:iam::ddf4c98b5e6647f0a246f0624c8341d9:root"},
-        "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:GetObject"],
-        "Resource": [
-            f"arn:aws:s3:::your-byoc-bucket",
-            f"arn:aws:s3:::your-byoc-bucket/*"
-        ]
-    }]
-}
-
-s3_client.put_bucket_policy(
-    Bucket='your-byoc-bucket',
-    Policy=json.dumps(bucket_policy)
-)
-```
+Rather than validating every file individually, a representative subset is typically tested first. Once the approach is confirmed, the same process is applied consistently across the full archive.
 
 ---
 
-## Phase 4: BYOC Collection Configuration
+## Phase 3 – Data Transfer into the CDSE Ecosystem
 
-### 4.1 Collection Creation via API
+With the imagery prepared in a BYOC-compatible format, the workflow moves on to data transfer. Given the dataset size (50 TB) and the target environment, data locality becomes a key consideration.
 
-**Prerequisites:**
-- Sentinel Hub OAuth2 client credentials
-- Python with `sentinelhub` library
+For production use, the preferred approach is to move the data into CreoDIAS object storage. This ensures that the imagery is physically close to Sentinel Hub processing services and avoids long-term cross-cloud latency.
 
-**Installation:**
-```bash
-pip install sentinelhub
-```
+In practical terms, this phase involves:
 
-**Configuration:**
-```python
-from sentinelhub import SHConfig
+- Selecting an S3-compatible transfer method capable of handling large volumes  
+- Executing the transfer as a bulk operation with parallelisation  
+- Monitoring transfer integrity and completeness  
 
-config = SHConfig()
-config.sh_client_id = 'YOUR_CLIENT_ID'
-config.sh_client_secret = 'YOUR_CLIENT_SECRET'
-config.sh_base_url = 'https://sh.dataspace.copernicus.eu'
-config.save()
-```
-
-**Create Collection:**
-```python
-import requests
-from sentinelhub import SHConfig
-
-config = SHConfig()
-token = config.sh_auth_token
-
-headers = {
-    'Authorization': f'Bearer {token}',
-    'Content-Type': 'application/json'
-}
-
-collection_data = {
-    "name": "Aerial Imagery 50TB Collection",
-    "s3Bucket": "PROJECT_ID:your-byoc-bucket",  # For CreoDIAS
-    "storageId": "waw3-2",
-    "additionalData": {
-        "bands": {
-            "Red": {
-                "source": "RGB",
-                "bandIndex": 1,
-                "bitDepth": 16,
-                "sampleFormat": "UINT"
-            },
-            "Green": {
-                "source": "RGB",
-                "bandIndex": 2,
-                "bitDepth": 16,
-                "sampleFormat": "UINT"
-            },
-            "Blue": {
-                "source": "RGB",
-                "bandIndex": 3,
-                "bitDepth": 16,
-                "sampleFormat": "UINT"
-            },
-            "NIR": {
-                "source": "NIR",
-                "bandIndex": 1,
-                "bitDepth": 16,
-                "sampleFormat": "UINT"
-            }
-        },
-        "noDataValue": 0
-    }
-}
-
-response = requests.post(
-    'https://sh.dataspace.copernicus.eu/api/v1/byoc/collections',
-    headers=headers,
-    json=collection_data
-)
-
-collection_id = response.json()['data']['id']
-print(f"Collection created with ID: {collection_id}")
-```
-
-### 4.2 Band Configuration Best Practices
-
-**Band Naming Conventions:**
-- Use valid JavaScript identifiers
-- Avoid reserved keywords
-- Use descriptive names: Red, Green, Blue, NIR, SWIR1, etc.
-- Maintain consistency across all tiles
-
-**Sample Format Options:**
-- `UINT`: Unsigned integers (most common for imagery)
-- `INT`: Signed integers
-- `FLOAT`: Floating point (for derived products)
-
-**Multi-file Organization:**
-```
-tile_001/
-  ├── RGB_(BAND).tif       # Contains Red, Green, Blue
-  ├── NIR_(BAND).tif       # Contains NIR band
-  └── mask_(BAND).tif      # Contains quality/cloud mask
-
-Path in BYOC: "tile_001/(BAND)_(BAND).tif"
-```
+The transfer phase is treated as a purely logistical operation. No data transformation is expected at this stage, as all standardisation has already been completed earlier.
 
 ---
 
-## Phase 5: Tile Organization & Cover Geometries
+## Phase 4 – Object Storage Configuration
 
-### 5.1 Directory Structure
+Before Sentinel Hub can access the data, the CreoDIAS object storage environment must be configured correctly.
 
-**Recommended Structure:**
-```
-your-byoc-bucket/
-├── tiles/
-│   ├── tile_001/
-│   │   ├── RGB.tif
-│   │   ├── NIR.tif
-│   │   └── metadata.json
-│   ├── tile_002/
-│   │   ├── RGB.tif
-│   │   ├── NIR.tif
-│   │   └── metadata.json
-│   └── ...
-└── cover_geometries/
-    ├── tile_001.geojson
-    ├── tile_002.geojson
-    └── ...
-```
+This phase includes:
 
-### 5.2 Cover Geometry Generation
+- Creating a dedicated object storage bucket in an appropriate CreoDIAS region  
+- Organising the imagery in a clear and predictable directory structure  
+- Applying a bucket policy that grants Sentinel Hub read-only permissions  
 
-**Method 1: GDAL trace_outline**
-```bash
-#!/bin/bash
-# generate_cover_geometry.sh
-
-INPUT_FILE="$1"
-OUTPUT_WKT="$2"
-
-# Generate outline
-gdal_trace_outline "$INPUT_FILE" \
-  -out-cs en \
-  -wkt-out "$OUTPUT_WKT"
-```
-
-**Method 2: Simplified with GDAL Python**
-```python
-from osgeo import gdal, ogr, osr
-import json
-
-def create_cover_geometry(raster_path):
-    """Generate cover geometry from raster footprint"""
-    ds = gdal.Open(raster_path)
-    if not ds:
-        raise ValueError(f"Cannot open {raster_path}")
-    
-    # Get geotransform and size
-    gt = ds.GetGeoTransform()
-    cols = ds.RasterXSize
-    rows = ds.RasterYSize
-    
-    # Calculate corners
-    corners = [
-        (gt[0], gt[3]),
-        (gt[0] + cols * gt[1], gt[3]),
-        (gt[0] + cols * gt[1], gt[3] + rows * gt[5]),
-        (gt[0], gt[3] + rows * gt[5]),
-        (gt[0], gt[3])
-    ]
-    
-    # Get projection
-    srs = osr.SpatialReference()
-    srs.ImportFromWkt(ds.GetProjection())
-    epsg_code = srs.GetAttrValue('AUTHORITY', 1)
-    
-    # Create GeoJSON
-    geometry = {
-        "type": "Polygon",
-        "coordinates": [corners],
-        "crs": {
-            "type": "name",
-            "properties": {
-                "name": f"urn:ogc:def:crs:EPSG::{epsg_code}"
-            }
-        }
-    }
-    
-    ds = None
-    return geometry
-
-# Usage
-cover_geom = create_cover_geometry("tile_001/RGB.tif")
-print(json.dumps(cover_geom, indent=2))
-```
-
-**Simplification (if needed):**
-```python
-from shapely.geometry import shape
-from shapely.wkt import dumps
-
-def simplify_geometry(geojson_geom, tolerance=10):
-    """Simplify geometry to reduce point count"""
-    geom = shape(geojson_geom)
-    simplified = geom.simplify(tolerance, preserve_topology=True)
-    
-    # Convert back to GeoJSON format
-    return {
-        "type": "Polygon",
-        "coordinates": [list(simplified.exterior.coords)],
-        "crs": geojson_geom.get("crs")
-    }
-```
+The permissions are intentionally minimal and typically limited to listing objects and reading files. This configuration step is small in scope but critical, as misconfigured access rights are a common cause of ingestion issues.
 
 ---
 
-## Phase 6: Automated Tile Ingestion
+## Phase 5 – BYOC Collection Definition
 
-### 6.1 Batch Ingestion Script
+After storage is ready, a BYOC collection is created within Sentinel Hub. Conceptually, this collection acts as a logical bridge between Sentinel Hub services and externally stored imagery.
 
-**Complete Python Implementation:**
-```python
-import requests
-import json
-from pathlib import Path
-from sentinelhub import SHConfig
-from datetime import datetime
-import time
+During collection creation, the following elements are defined:
 
-class BYOCIngester:
-    def __init__(self, collection_id):
-        self.config = SHConfig()
-        self.collection_id = collection_id
-        self.base_url = 'https://sh.dataspace.copernicus.eu/api/v1/byoc'
-        self.headers = {
-            'Authorization': f'Bearer {self.config.sh_auth_token}',
-            'Content-Type': 'application/json'
-        }
-    
-    def ingest_tile(self, tile_data):
-        """Ingest a single tile"""
-        url = f'{self.base_url}/collections/{self.collection_id}/tiles'
-        
-        payload = {
-            "path": tile_data['path'],
-            "sensingTime": tile_data['sensing_time'],
-            "coverGeometry": tile_data.get('cover_geometry')
-        }
-        
-        try:
-            response = requests.post(url, headers=self.headers, json=payload)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            print(f"Error ingesting {tile_data['path']}: {e}")
-            print(f"Response: {e.response.text}")
-            return None
-    
-    def check_tile_status(self, tile_id):
-        """Check ingestion status"""
-        url = f'{self.base_url}/collections/{self.collection_id}/tiles/{tile_id}'
-        response = requests.get(url, headers=self.headers)
-        return response.json()['data']['status']
-    
-    def batch_ingest(self, tiles_list, batch_size=100):
-        """Ingest tiles in batches"""
-        total = len(tiles_list)
-        successful = 0
-        failed = []
-        
-        for i in range(0, total, batch_size):
-            batch = tiles_list[i:i+batch_size]
-            print(f"Processing batch {i//batch_size + 1} ({i+1}-{min(i+batch_size, total)} of {total})")
-            
-            for tile_data in batch:
-                result = self.ingest_tile(tile_data)
-                if result:
-                    successful += 1
-                    print(f"✓ Ingested: {tile_data['path']}")
-                else:
-                    failed.append(tile_data['path'])
-                
-                # Rate limiting - be respectful
-                time.sleep(0.5)
-            
-            print(f"Batch complete. Success: {successful}, Failed: {len(failed)}")
-        
-        return successful, failed
+- Reference to the CreoDIAS bucket and storage region  
+- Available bands and their data types  
+- NoData values and basic metadata  
 
-# Usage Example
-if __name__ == "__main__":
-    collection_id = "YOUR_COLLECTION_ID"
-    
-    # Prepare tile list
-    tiles = []
-    for i in range(1, 1001):  # Example: 1000 tiles
-        tile_data = {
-            'path': f'tiles/tile_{i:04d}/(BAND).tif',
-            'sensing_time': f'2024-{i%12+1:02d}-15T10:00:00Z',
-            'cover_geometry': None  # Or load from file
-        }
-        tiles.append(tile_data)
-    
-    # Ingest
-    ingester = BYOCIngester(collection_id)
-    successful, failed = ingester.batch_ingest(tiles, batch_size=50)
-    
-    print(f"\n=== Ingestion Summary ===")
-    print(f"Total tiles: {len(tiles)}")
-    print(f"Successful: {successful}")
-    print(f"Failed: {len(failed)}")
-    
-    if failed:
-        print("\nFailed tiles:")
-        for path in failed:
-            print(f"  - {path}")
-```
+At this stage, the imagery itself is not yet ingested. The collection only defines how Sentinel Hub should interpret and access the data once tiles are registered.
 
+---
 
+## Phase 6 – Tile Registration and Ingestion
 
-## Phase 9: Production Deployment
+Once the collection exists, individual tiles are registered with it. Each tile corresponds to a specific path in the object storage bucket and represents a spatial unit that Sentinel Hub can index and serve.
 
-### 9.1 Copernicus Browser Integration
+Tile ingestion is usually performed in batches and automated to handle large volumes efficiently. For each tile, the ingestion process typically associates:
 
-1. Enable collection in Dashboard
-2. Configure visualization parameters
-3. Set default rendering
-4. Add collection description
+- The storage path  
+- Optional sensing time information  
+- A spatial cover geometry (recommended for performance and accuracy)  
 
+Ingestion progress is monitored continuously, allowing failed tiles to be retried without impacting the rest of the dataset.
+
+---
+
+## Phase 7 – Validation and Functional Testing
+
+After ingestion, the collection is validated to ensure it behaves correctly from a user and API perspective.
+
+Validation typically includes:
+
+- Verifying that tiles are correctly indexed  
+- Testing spatial and temporal queries  
+- Performing simple rendering or extraction requests via Sentinel Hub APIs  
+- Visual inspection in the Copernicus Browser  
+
+Only limited test cases are needed at this stage, as the goal is to confirm correct end-to-end integration rather than exhaustive data quality analysis.
+
+---
+
+## Phase 8 – Operational Optimisation
+
+Once the collection is functional, attention shifts to performance and operational efficiency. This phase is iterative and may continue throughout the lifetime of the dataset.
+
+Common optimisation measures include:
+
+- Ensuring overview levels are properly generated  
+- Using precise cover geometries to minimise unnecessary reads  
+- Keeping evaluation scripts lightweight  
+- Enabling cached services for frequently accessed layers  
+
+These optimisations help control processing costs and improve responsiveness for end users.
+
+---
+
+## Phase 9 – Production Enablement
+
+In the final phase, the collection is fully enabled for operational use. This includes making it visible in the Copernicus Browser, adding descriptive metadata, and defining default visualisations.
+
+At this point, the dataset is considered production-ready and can be accessed through Sentinel Hub APIs and tools like any other supported data collection.
 
 
 
