@@ -47,7 +47,7 @@ This project leverages the following key resources and services:
 
 This document describes the conceptual workflow used to onboard a large archive (approximately 50 TB) of high-resolution aerial imagery into the Sentinel Hub *Bring Your Own COG* (BYOC) service, with the objective of making the data accessible through the Copernicus Browser within the Copernicus Data Space Ecosystem (CDSE), which operates on CreoDIAS infrastructure.
  
-A Mermaid code as well as an html Workflow has been added in this project in order to have a better understsandinfg of the process.
+A Mermaid code as well as a html Workflow has been added in this project in order to have a better understsandinfg of the process.
 
 
 
@@ -94,7 +94,7 @@ In practical terms, this phase involves:
 - Executing the transfer as a bulk operation with parallelisation  
 - Monitoring transfer integrity and completeness  
 
-The transfer phase is treated as a purely logistical operation. No data transformation is expected at this stage, as all standardisation has already been completed earlier.
+No data transformation is expected at this stage, as all standardisation has already been completed earlier.
 
 
 
@@ -108,7 +108,6 @@ This phase includes:
 - Organising the imagery in a clear and predictable directory structure  
 - Applying a bucket policy that grants Sentinel Hub read-only permissions  
 
-The permissions are intentionally minimal and typically limited to listing objects and reading files. This configuration step is small in scope but critical, as misconfigured access rights are a common cause of ingestion issues.
 
 
 ### Phase 5 – BYOC Collection Definition
@@ -156,16 +155,13 @@ Only limited test cases are needed at this stage, as the goal is to confirm corr
 
 ### Phase 8 – Operational Optimisation
 
-Once the collection is functional, attention shifts to performance and operational efficiency. This phase is iterative and may continue throughout the lifetime of the dataset.
-
-Common optimisation measures include:
+This phase is iterative and may continue throughout the lifetime of the dataset. Common optimisation measures include:
 
 - Ensuring overview levels are properly generated  
 - Using precise cover geometries to minimise unnecessary reads  
 - Keeping evaluation scripts lightweight  
 - Enabling cached services for frequently accessed layers  
 
-These optimisations help control processing costs and improve responsiveness for end users.
 
 
 
